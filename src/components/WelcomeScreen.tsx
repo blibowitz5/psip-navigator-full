@@ -27,8 +27,8 @@ export function WelcomeScreen() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-8 animate-fade-in">
       <div className="space-y-4">
-        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-accent shadow-lg">
-          <FileText className="w-10 h-10 text-primary-foreground" />
+        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-primary/10">
+          <FileText className="w-10 h-10 text-primary" />
         </div>
         <h2 className="text-3xl font-bold text-foreground">
           Welcome to PSIP Navigator
@@ -43,7 +43,7 @@ export function WelcomeScreen() {
         {features.map((feature, index) => (
           <div
             key={index}
-            className="bg-card border border-border rounded-xl p-6 text-left hover:shadow-lg transition-all duration-300 hover:-translate-y-1"
+            className="bg-card border border-border rounded-xl p-6 text-left transition-all duration-200"
             style={{ animationDelay: `${index * 100}ms` }}
           >
             <feature.icon className="w-8 h-8 text-primary mb-3" />

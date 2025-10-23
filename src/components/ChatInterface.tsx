@@ -63,13 +63,13 @@ export function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-background via-background to-muted/20">
+    <div className="flex flex-col h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-border bg-card">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-              <Bot className="w-6 h-6 text-primary-foreground" />
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Bot className="w-6 h-6 text-primary" />
             </div>
             <div>
               <h1 className="text-xl font-semibold text-foreground">PSIP Navigator</h1>
@@ -78,7 +78,7 @@ export function ChatInterface() {
           </div>
           
           <Select value={selectedModel} onValueChange={(value) => setSelectedModel(value as LLMModel)}>
-            <SelectTrigger className="w-[160px] bg-background/50">
+            <SelectTrigger className="w-[160px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -122,7 +122,7 @@ export function ChatInterface() {
       </ScrollArea>
 
       {/* Input Area */}
-      <div className="border-t border-border bg-card/50 backdrop-blur-sm">
+      <div className="border-t border-border bg-card">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex gap-3 items-end">
             <div className="flex-1 relative">
@@ -131,7 +131,7 @@ export function ChatInterface() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="Ask about your health plan benefits..."
-                className="pr-12 min-h-[52px] resize-none bg-background/50"
+                className="min-h-[52px]"
                 disabled={isLoading}
               />
             </div>
@@ -139,7 +139,7 @@ export function ChatInterface() {
               onClick={handleSend}
               disabled={!input.trim() || isLoading}
               size="lg"
-              className="h-[52px] px-6 bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity"
+              className="h-[52px] px-6"
             >
               <Send className="w-5 h-5" />
             </Button>
