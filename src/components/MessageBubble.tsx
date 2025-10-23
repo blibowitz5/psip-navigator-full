@@ -1,4 +1,5 @@
-import { UserRound, User } from "lucide-react";
+import { User } from "lucide-react";
+import nellyAvatar from "@/assets/nelly-avatar.png";
 
 type Message = {
   id: string;
@@ -15,9 +16,11 @@ export function MessageBubble({ message }: { message: Message }) {
       className={`flex gap-3 animate-fade-in ${isUser ? "justify-end" : "justify-start"}`}
     >
       {!isUser && (
-        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-          <UserRound className="w-5 h-5 text-primary" />
-        </div>
+        <img 
+          src={nellyAvatar} 
+          alt="Nelly" 
+          className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+        />
       )}
       
       <div

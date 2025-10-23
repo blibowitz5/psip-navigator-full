@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Send, UserRound } from "lucide-react";
+import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { WelcomeScreen } from "./WelcomeScreen";
 import { MessageBubble } from "./MessageBubble";
+import nellyAvatar from "@/assets/nelly-avatar.png";
 
 type Message = {
   id: string;
@@ -68,9 +69,11 @@ export function ChatInterface() {
       <header className="border-b border-border bg-card">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <UserRound className="w-6 h-6 text-primary" />
-            </div>
+            <img 
+              src={nellyAvatar} 
+              alt="Nelly - Care Navigator" 
+              className="w-10 h-10 rounded-xl object-cover"
+            />
             <div>
               <h1 className="text-xl font-semibold text-foreground">PSIP Navigator</h1>
               <p className="text-xs text-muted-foreground">Ask Nelly about your benefits</p>
@@ -104,9 +107,11 @@ export function ChatInterface() {
               ))}
               {isLoading && (
                 <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <UserRound className="w-5 h-5 text-primary" />
-                  </div>
+                  <img 
+                    src={nellyAvatar} 
+                    alt="Nelly" 
+                    className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                  />
                   <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-4 py-3">
                     <div className="flex gap-1.5">
                       <div className="w-2 h-2 rounded-full bg-primary/40 animate-bounce" style={{ animationDelay: "0ms" }} />
