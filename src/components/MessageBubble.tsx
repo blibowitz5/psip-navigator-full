@@ -1,4 +1,4 @@
-import { Bot, User } from "lucide-react";
+import { UserRound, User } from "lucide-react";
 
 type Message = {
   id: string;
@@ -16,7 +16,7 @@ export function MessageBubble({ message }: { message: Message }) {
     >
       {!isUser && (
         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-          <Bot className="w-5 h-5 text-primary" />
+          <UserRound className="w-5 h-5 text-primary" />
         </div>
       )}
       
