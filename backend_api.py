@@ -1,6 +1,7 @@
 from typing import List, Dict, Any
 import os
 import asyncio
+import re
 
 import chromadb
 from fastapi import FastAPI
@@ -18,6 +19,50 @@ try:
 except Exception:
     openai = None
     openai_available = False
+
+def enhanced_query_processing(question: str) -> List[str]:
+    """Generate multiple query variations for better semantic retrieval"""
+    queries = [question]  # Original question
+    
+    # Insurance terminology synonyms and variations
+    synonyms = {
+        "deductible": ["out-of-pocket", "co-pay", "co-payment", "upfront cost", "initial payment"],
+        "coverage": ["benefits", "insurance", "protection", "what's covered", "covered services"],
+        "referral": ["authorization", "permission", "approval", "referral required", "need permission"],
+        "emergency": ["urgent", "critical", "immediate care", "emergency room", "ER"],
+        "specialist": ["specialist doctor", "specialist care", "specialized care", "specialist visit"],
+        "copay": ["copayment", "fixed cost", "set amount", "flat fee", "per visit cost"],
+        "coinsurance": ["percentage", "share of cost", "portion", "percentage you pay"],
+        "network": ["in-network", "covered providers", "plan providers", "participating providers"],
+        "prescription": ["medication", "drugs", "pharmacy", "prescription drugs", "meds"],
+        "mental health": ["behavioral health", "mental health services", "psychiatric", "therapy", "counseling"]
+    }
+    
+    # Generate variations by replacing terms
+    for original, alternatives in synonyms.items():
+        if original.lower() in question.lower():
+            for alt in alternatives:
+                variation = question.replace(original, alt)
+                if variation not in queries:
+                    queries.append(variation)
+    
+    # Generate question variations
+    question_patterns = {
+        r"what.*cost": ["cost", "price", "fee", "charge", "expense"],
+        r"do i need": ["require", "necessary", "must have", "need permission"],
+        r"how much": ["cost", "price", "amount", "fee", "charge"],
+        r"can i": ["am i allowed", "is it covered", "do i have access"],
+        r"what.*covered": ["benefits", "included", "covered services", "what's included"]
+    }
+    
+    for pattern, alternatives in question_patterns.items():
+        if re.search(pattern, question.lower()):
+            for alt in alternatives:
+                variation = re.sub(pattern, f"what {alt}", question, flags=re.IGNORECASE)
+                if variation not in queries:
+                    queries.append(variation)
+    
+    return queries[:5]  # Limit to 5 variations to avoid overwhelming the system
 
 # Initialize FastAPI app
 app = FastAPI(title="PSIP Plan Pal Backend", version="0.1.0")
@@ -95,12 +140,37 @@ def build_rag_prompt(question: str, contexts: List[Dict[str, Any]]) -> str:
         page = c.get("metadata", {}).get("page_number", "")
         context_blocks.append(f"Source: {source} (page {page})\n{c.get('text','')}")
     joined_context = "\n\n---\n\n".join(context_blocks)
-    instructions = (
-        "You are an assistant answering questions using the provided plan documents. "
-        "Only use the context. If the answer is not present, say: 'I am unable to answer this question at this time.' "
-        "Cite the sources (filename and page) you used in a short Sources section."
+    
+    enhanced_instructions = (
+        "You are Nelly, a specialized PSIP health insurance assistant. Your role is to help members understand their benefits using the provided plan documents.\n\n"
+        "INSTRUCTIONS:\n"
+        "1. Answer questions using ONLY the provided context from plan documents\n"
+        "2. If the question asks about something similar to what's in the context (even with different wording), provide the relevant information\n"
+        "3. Look for semantic meaning, not just exact word matches\n"
+        "4. If you find related information that partially answers the question, explain what you found and what's missing\n"
+        "5. Be conversational and helpful while staying accurate\n"
+        "6. If the answer is not in the context, say: 'I don't have specific information about this in your plan documents.'\n"
+        "7. Always cite your sources (filename and page) in a 'Sources' section\n\n"
+        "EXAMPLES OF SEMANTIC MATCHING:\n"
+        "- 'What do I pay upfront?' → Look for deductible, copay, out-of-pocket information\n"
+        "- 'Can I see a specialist?' → Look for referral requirements, specialist coverage\n"
+        "- 'What's covered for mental health?' → Look for behavioral health, mental health benefits\n"
+        "- 'Do I need permission to see a doctor?' → Look for referral, authorization, prior authorization\n"
+        "- 'What's my share of costs?' → Look for copay, coinsurance, out-of-pocket maximum\n"
+        "- 'Emergency care coverage' → Look for emergency room, urgent care, emergency services\n"
+        "- 'Prescription drug costs' → Look for pharmacy benefits, drug coverage, medication costs\n\n"
+        "INSURANCE TERMINOLOGY HELP:\n"
+        "- 'Deductible' = amount you pay before insurance starts covering\n"
+        "- 'Copay' = fixed amount you pay for services\n"
+        "- 'Coinsurance' = percentage you pay after deductible\n"
+        "- 'Out-of-pocket maximum' = most you'll pay in a year\n"
+        "- 'In-network' = providers covered by your plan\n"
+        "- 'Out-of-network' = providers not in your plan's network\n"
+        "- 'Prior authorization' = approval needed before certain services\n"
+        "- 'Referral' = permission from primary care doctor to see specialist\n"
     )
-    return f"{instructions}\n\nQuestion:\n{question}\n\nContext:\n{joined_context}\n\nAnswer:"
+    
+    return f"{enhanced_instructions}\n\nQuestion: {question}\n\nContext:\n{joined_context}\n\nAnswer:"
 
 def call_general_llm(question: str) -> Dict[str, Any]:
     """Call general LLM without RAG context"""
@@ -145,19 +215,34 @@ async def ask(req: AskRequest) -> Dict[str, Any]:
             "model": "gpt-4"
         }
     
-    # Default to Nelly 1.0 (RAG-based)
-    # Retrieve relevant context
-    query_embedding = model.encode([req.question]).tolist()
-    results = collection.query(query_embeddings=query_embedding, n_results=req.n_context)
-
-    contexts: List[Dict[str, Any]] = []
-    for i in range(len(results.get("documents", [[]])[0])):
-        contexts.append({
-            "text": results["documents"][0][i],
-            "metadata": results["metadatas"][0][i],
-            "distance": results["distances"][0][i],
-            "id": results["ids"][0][i],
-        })
+    # Default to Nelly 1.0 (RAG-based) with enhanced semantic understanding
+    # Generate multiple query variations for better retrieval
+    query_variations = enhanced_query_processing(req.question)
+    
+    # Retrieve contexts for each variation and combine
+    all_contexts = []
+    for query in query_variations:
+        query_embedding = model.encode([query]).tolist()
+        results = collection.query(query_embeddings=query_embedding, n_results=3)  # Fewer per query, more queries
+        
+        for i in range(len(results.get("documents", [[]])[0])):
+            all_contexts.append({
+                "text": results["documents"][0][i],
+                "metadata": results["metadatas"][0][i],
+                "distance": results["distances"][0][i],
+                "id": results["ids"][0][i],
+            })
+    
+    # Remove duplicates and get top contexts
+    unique_contexts = []
+    seen_ids = set()
+    for context in all_contexts:
+        if context["id"] not in seen_ids:
+            unique_contexts.append(context)
+            seen_ids.add(context["id"])
+    
+    # Sort by distance (lower is better) and take top contexts
+    contexts = sorted(unique_contexts, key=lambda x: x["distance"])[:req.n_context]
 
     # If no OpenAI key, return contexts so frontend can render and handle summarization client-side
     if openai_client is None:
