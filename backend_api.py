@@ -105,12 +105,25 @@ def log_interaction_to_csv(question: str, answer: str, model: str, timestamp: da
 # Initialize FastAPI app
 app = FastAPI(title="PSIP Plan Pal Backend", version="0.1.0")
 
-# Enable CORS for local dev and any frontend origin (adjust as needed)
+# Enable CORS - configure for production
+allowed_origins = [
+    "http://localhost:3000",
+    "http://localhost:8080", 
+    "http://localhost:8081",
+    "http://localhost:8082",
+    "https://psip-navigator.vercel.app",  # Update with your actual frontend URL
+    "https://psip-plan-pal.vercel.app",   # Update with your actual frontend URL
+]
+
+# Add environment variable for additional origins
+additional_origins = os.environ.get("ALLOWED_ORIGINS", "").split(",")
+allowed_origins.extend([origin.strip() for origin in additional_origins if origin.strip()])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
