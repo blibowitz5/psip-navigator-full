@@ -2,6 +2,8 @@ from typing import List, Dict, Any
 import os
 import asyncio
 import re
+import csv
+from datetime import datetime
 
 import chromadb
 from fastapi import FastAPI
@@ -63,6 +65,41 @@ def enhanced_query_processing(question: str) -> List[str]:
                     queries.append(variation)
     
     return queries[:5]  # Limit to 5 variations to avoid overwhelming the system
+
+def log_interaction_to_csv(question: str, answer: str, model: str, timestamp: datetime = None, error: str = None, contexts_used: int = 0):
+    """Log interaction to CSV file for training purposes"""
+    if timestamp is None:
+        timestamp = datetime.now()
+    
+    # Create CSV file path
+    csv_file = "interaction_log.csv"
+    
+    # Check if file exists to determine if we need headers
+    file_exists = os.path.exists(csv_file)
+    
+    # Prepare the row data
+    row_data = {
+        'timestamp': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+        'question': question,
+        'answer': answer if answer else '',
+        'model': model,
+        'error': error if error else '',
+        'contexts_used': contexts_used,
+        'date': timestamp.strftime('%Y-%m-%d'),
+        'time': timestamp.strftime('%H:%M:%S')
+    }
+    
+    # Write to CSV
+    with open(csv_file, 'a', newline='', encoding='utf-8') as csvfile:
+        fieldnames = ['timestamp', 'question', 'answer', 'model', 'error', 'contexts_used', 'date', 'time']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        
+        # Write header if file is new
+        if not file_exists:
+            writer.writeheader()
+        
+        # Write the row
+        writer.writerow(row_data)
 
 # Initialize FastAPI app
 app = FastAPI(title="PSIP Plan Pal Backend", version="0.1.0")
@@ -203,12 +240,29 @@ async def ask(req: AskRequest) -> Dict[str, Any]:
         # Use general LLM without RAG
         general_result = call_general_llm(req.question)
         if "error" in general_result:
+            # Log the error
+            log_interaction_to_csv(
+                question=req.question,
+                answer=None,
+                model="gpt-4",
+                error=general_result["error"],
+                contexts_used=0
+            )
             return {
                 "question": req.question,
                 "answer": None,
                 "error": general_result["error"],
                 "model": "gpt-4"
             }
+        
+        # Log successful GPT-4 response
+        log_interaction_to_csv(
+            question=req.question,
+            answer=general_result["answer"],
+            model="gpt-4",
+            contexts_used=0
+        )
+        
         return {
             "question": req.question,
             "answer": general_result["answer"],
@@ -246,6 +300,14 @@ async def ask(req: AskRequest) -> Dict[str, Any]:
 
     # If no OpenAI key, return contexts so frontend can render and handle summarization client-side
     if openai_client is None:
+        # Log the no-API-key scenario
+        log_interaction_to_csv(
+            question=req.question,
+            answer=None,
+            model="nelly-1.0",
+            error="No OPENAI_API_KEY set",
+            contexts_used=len(contexts)
+        )
         return {
             "question": req.question,
             "answer": None,
@@ -268,7 +330,31 @@ async def ask(req: AskRequest) -> Dict[str, Any]:
             temperature=0.2,
         )
         answer_text = response.choices[0].message.content
+        
+        # Log successful Nelly 1.0 response
+        log_interaction_to_csv(
+            question=req.question,
+            answer=answer_text,
+            model="nelly-1.0",
+            contexts_used=len(contexts)
+        )
+        
+        return {
+            "question": req.question,
+            "answer": answer_text,
+            "contexts": contexts,
+            "model": "nelly-1.0",
+        }
     except Exception as e:
+        # Log the error
+        log_interaction_to_csv(
+            question=req.question,
+            answer=None,
+            model="nelly-1.0",
+            error=f"LLM call failed: {e}",
+            contexts_used=len(contexts)
+        )
+        
         return {
             "question": req.question,
             "answer": None,
@@ -276,10 +362,3 @@ async def ask(req: AskRequest) -> Dict[str, Any]:
             "contexts": contexts,
             "model": "nelly-1.0"
         }
-
-    return {
-        "question": req.question,
-        "answer": answer_text,
-        "contexts": contexts,
-        "model": "nelly-1.0",
-    }

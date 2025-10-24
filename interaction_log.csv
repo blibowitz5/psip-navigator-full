@@ -1,0 +1,12 @@
+timestamp,question,answer,model,error,contexts_used,date,time
+2025-10-24 12:29:54,Test question for logging system,"I don't have specific information about this in your plan documents. 
+
+Sources: None applicable.",nelly-1.0,,3,2025-10-24,12:29:54
+2025-10-24 12:29:59,What is my deductible?,"I don't have access to your specific health insurance plan details, including your deductible. To find out your deductible, you can check your insurance policy documents, visit your insurance provider's website, or contact their customer service directly. If you have a member ID card, it may also have information about your deductible.",gpt-4,,0,2025-10-24,12:29:59
+2025-10-24 12:30:15,Hi! I have frost bite on my finger and want to see a hand specialist. Is this covered? What do I need to do?,"To see a hand specialist for frostbite, you will likely need to check if a referral is required from your primary care doctor, as many insurance plans have this requirement for specialist visits. Additionally, if you choose to use telemedicine to consult with a specialist, be aware that the cost-sharing may differ from other outpatient services, so it's a good idea to review the schedule of benefits for specific details.
+
+Unfortunately, the provided context does not specify whether frostbite treatment is covered or if a referral is necessary, so I recommend contacting your insurance provider directly for clarification on these points.
+
+Sources:
+- Master_Policy.pdf (page 69)
+- Master_Policy.pdf (page 61)",nelly-1.0,,5,2025-10-24,12:30:15
