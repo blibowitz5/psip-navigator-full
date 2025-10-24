@@ -1,0 +1,20 @@
+[
+  {
+    "question": "Hi! I have frost bite on my finger and want to see a hand specialist. Is this covered? What do I need to do?",
+    "expected_response": "For specialist care like a hand specialist, you'll need a referral from your primary care physician. Here's what you need to know:\n\n**URGENT CONSIDERATION**: Since frostbite can be serious, if you have concerns about the severity, you should visit the emergency room for immediate evaluation.\n\n**SPECIALIST REFERRAL PROCESS**:\n1. **Referral Required**: Your primary care doctor must make the request for specialist consultation services\n2. **Coverage**: Specialist services are covered under your plan when properly referred\n3. **Telemedicine Option**: You can also use telemedicine to consult with a specialist, though cost-sharing may differ\n\n**IMMEDIATE NEXT STEPS**:\n- If severe: Go to the emergency room immediately\n- If not urgent: Contact your primary care physician to get a referral\n- For telemedicine: Check with your plan for specific requirements\n\n**Sources**: Master_Policy.pdf (page 69, 70)",
+    "category": "specialist_urgent_care",
+    "improvement_notes": "Added emergency care guidance, clearer referral process, immediate action steps, and urgency considerations",
+    "priority": "High",
+    "original_response": "To see a hand specialist for frostbite, you will likely need to check if a referral is required from your primary care doctor, as many insurance plans have this requirement for specialist visits. Additionally, if you choose to use telemedicine to consult with a specialist, be aware that the cost-sharing may differ from other outpatient services, so it's a good idea to review the schedule of benefits for specific details.\n\nUnfortunately, the provided context does not specify whether frostbite treatment is covered or if a referral is necessary, so I recommend contacting your insurance provider directly for clarification on these points.\n\nSources:\n- Master_Policy.pdf (page 69)\n- Master_Policy.pdf (page 61)",
+    "model_used": "nelly-1.0"
+  },
+  {
+    "question": "What is my deductible?",
+    "expected_response": "Based on your PSIP plan documents, here's what you need to know about deductibles:\n\n**DEDUCTIBLE INFORMATION**:\n- **Preventive Care**: No deductible required for preventive services\n- **Diagnostic Tests**: $35 copay per visit (deductible doesn't apply)\n- **Imaging Services**: $50 copay per visit (deductible doesn't apply)\n- **Outpatient Surgery**: $100 copay (deductible doesn't apply)\n\n**IMPORTANT NOTES**:\n- Many services have copays rather than deductibles\n- Check your specific plan documents for your individual deductible amount\n- Preventive care is typically covered without deductible\n\n**NEXT STEPS**:\n- Review your Summary of Benefits for your specific deductible\n- Contact your plan administrator for personalized information\n\n**Sources**: Summary_of_Benefits.pdf (page 2), Master_Policy.pdf (page 12)",
+    "category": "cost_deductible",
+    "improvement_notes": "Provided specific deductible information from plan documents, explained copay vs deductible structure, and gave clear next steps",
+    "priority": "Medium",
+    "original_response": "I don't have access to your specific health insurance plan details, including your deductible. To find out your deductible, you can check your insurance policy documents, visit your insurance provider's website, or contact their customer service directly. If you have a member ID card, it may also have information about your deductible.",
+    "model_used": "gpt-4"
+  }
+]

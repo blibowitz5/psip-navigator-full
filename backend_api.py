@@ -66,7 +66,7 @@ def enhanced_query_processing(question: str) -> List[str]:
     
     return queries[:5]  # Limit to 5 variations to avoid overwhelming the system
 
-def log_interaction_to_csv(question: str, answer: str, model: str, timestamp: datetime = None, error: str = None, contexts_used: int = 0):
+def log_interaction_to_csv(question: str, answer: str, model: str, timestamp: datetime = None, error: str = None, contexts_used: int = 0, improved_response: str = None):
     """Log interaction to CSV file for training purposes"""
     if timestamp is None:
         timestamp = datetime.now()
@@ -85,13 +85,14 @@ def log_interaction_to_csv(question: str, answer: str, model: str, timestamp: da
         'model': model,
         'error': error if error else '',
         'contexts_used': contexts_used,
+        'improved_response': improved_response if improved_response else '',
         'date': timestamp.strftime('%Y-%m-%d'),
         'time': timestamp.strftime('%H:%M:%S')
     }
     
     # Write to CSV
     with open(csv_file, 'a', newline='', encoding='utf-8') as csvfile:
-        fieldnames = ['timestamp', 'question', 'answer', 'model', 'error', 'contexts_used', 'date', 'time']
+        fieldnames = ['timestamp', 'question', 'answer', 'model', 'error', 'contexts_used', 'improved_response', 'date', 'time']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         
         # Write header if file is new
