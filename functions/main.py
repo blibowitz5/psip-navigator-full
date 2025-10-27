@@ -3,8 +3,8 @@ PSIP Navigator Firebase Functions
 Main entry point for Cloud Functions
 """
 
+import functions_framework
 from flask import Flask, request, jsonify
-from functions_framework import http
 import os
 import sys
 import json
@@ -16,31 +16,33 @@ from src.api.ask import ask_endpoint
 from src.api.search import search_endpoint
 from src.api.health import health_endpoint
 
-app = Flask(__name__)
-
-@app.route('/ask', methods=['POST', 'OPTIONS'])
-def ask():
-    if request.method == 'OPTIONS':
-        return '', 200
+@functions_framework.http
+def ask(request):
+    """Ask endpoint for RAG queries"""
     return ask_endpoint(request)
 
-@app.route('/search', methods=['POST', 'OPTIONS'])
-def search():
-    if request.method == 'OPTIONS':
-        return '', 200
+@functions_framework.http
+def search(request):
+    """Search endpoint for semantic search"""
     return search_endpoint(request)
 
-@app.route('/health', methods=['GET'])
-def health():
+@functions_framework.http
+def health(request):
+    """Health check endpoint"""
     return health_endpoint()
 
-@app.route('/', methods=['GET'])
-def root():
-    return jsonify({
-        "message": "PSIP Navigator API",
-        "version": "1.0.0",
-        "endpoints": ["/ask", "/search", "/health"]
-    })
-
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=8080)
+@functions_framework.http
+def main(request):
+    """Main function for all endpoints"""
+    if request.path == '/ask' and request.method == 'POST':
+        return ask_endpoint(request)
+    elif request.path == '/search' and request.method == 'POST':
+        return search_endpoint(request)
+    elif request.path == '/health' and request.method == 'GET':
+        return health_endpoint()
+    else:
+        return jsonify({
+            "message": "PSIP Navigator API",
+            "version": "1.0.0",
+            "endpoints": ["/ask", "/search", "/health"]
+        })
