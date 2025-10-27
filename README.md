@@ -1,73 +1,161 @@
-# Welcome to your Lovable project
+# 🏥 PSIP Navigator
 
-## Project info
+An AI-powered health insurance assistant that helps users understand their PSIP health plan benefits using RAG (Retrieval Augmented Generation) technology.
 
-**URL**: https://lovable.dev/projects/ca1feff9-23fd-4bff-a008-149fa080281a
+## 🚀 Live Application
 
-## How can I edit this code?
+- **Frontend**: https://rainbow-crepe-86c301.netlify.app
+- **Backend**: Firebase Functions (Node.js)
+- **Database**: ChromaDB with vectorized PDF documents
 
-There are several ways of editing your application.
+## 🏗️ Architecture
 
-**Use Lovable**
+### **Frontend (Netlify)**
+- **React + Vite** application
+- **Tailwind CSS** for styling
+- **TypeScript** for type safety
+- **Real-time chat interface** with two AI models
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/ca1feff9-23fd-4bff-a008-149fa080281a) and start prompting.
+### **Backend (Firebase Functions)**
+- **Node.js** serverless functions
+- **OpenAI API** integration for GPT-4 responses
+- **ChromaDB** for vector similarity search
+- **RAG implementation** for Nelly 1.0 model
 
-Changes made via Lovable will be committed automatically to this repo.
+### **AI Models**
+- **Nelly 1.0**: RAG-based responses using your insurance documents
+- **GPT-4**: General AI responses for broader questions
 
-**Use your preferred IDE**
+## 📁 Project Structure
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+psip-navigator/
+├── assets/
+│   └── pdfs/                    # Insurance PDF documents
+├── chroma_db/                   # Vector database storage
+├── data/                        # CSV logs and JSON data
+├── docs/                        # Documentation
+├── evaluation/                  # Model evaluation files
+├── functions/                   # Firebase Functions (backend)
+│   ├── index.js                 # Main function entry point
+│   └── package.json             # Node.js dependencies
+├── logs/                        # Application logs
+├── psip-plan-pal/              # Frontend React application
+│   ├── src/
+│   │   ├── components/         # React components
+│   │   ├── config/             # API configuration
+│   │   └── ...
+│   └── dist/                   # Built frontend
+├── scripts/                    # Utility scripts
+├── backend_api.py              # Local development backend
+├── firebase.json               # Firebase configuration
+├── netlify.toml                # Netlify configuration
+└── README.md                   # This file
 ```
 
-**Edit a file directly in GitHub**
+## 🛠️ Development Setup
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### **Prerequisites**
+- Node.js 18+
+- Python 3.9+
+- Firebase CLI
+- OpenAI API key
 
-**Use GitHub Codespaces**
+### **Local Development**
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+1. **Clone and setup**:
+   ```bash
+   git clone <repository-url>
+   cd psip-navigator
+   ```
 
-## What technologies are used for this project?
+2. **Frontend setup**:
+   ```bash
+   cd psip-plan-pal
+   npm install
+   npm run dev
+   ```
 
-This project is built with:
+3. **Backend setup** (for local testing):
+   ```bash
+   pip install -r requirements.txt
+   python backend_api.py
+   ```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+4. **Firebase Functions** (for deployment):
+   ```bash
+   cd functions
+   npm install
+   firebase deploy --only functions
+   ```
 
-## How can I deploy this project?
+## 🔑 Environment Variables
 
-Simply open [Lovable](https://lovable.dev/projects/ca1feff9-23fd-4bff-a008-149fa080281a) and click on Share -> Publish.
+### **Firebase Functions**
+- `OPENAI_API_KEY`: Your OpenAI API key
 
-## Can I connect a custom domain to my Lovable project?
+### **Frontend**
+- `VITE_API_BASE_URL`: Firebase Functions URL
 
-Yes, you can!
+## 📊 Features
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### **Document Processing**
+- **PDF parsing** and text extraction
+- **Vector embeddings** using sentence transformers
+- **Semantic search** through insurance documents
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+### **AI Capabilities**
+- **RAG responses** with document context
+- **Semantic understanding** of insurance terminology
+- **Multi-model support** (Nelly 1.0 + GPT-4)
+
+### **Logging & Analytics**
+- **CSV logging** of all interactions
+- **Model performance tracking**
+- **Training data collection**
+
+## 🚀 Deployment
+
+### **Current Deployment**
+- **Frontend**: Netlify (automatic from GitHub)
+- **Backend**: Firebase Functions
+- **Status**: ✅ Live and working
+
+### **Adding OpenAI API Key**
+```bash
+./scripts/set_openai_key.sh YOUR_OPENAI_API_KEY
+```
+
+## 📈 Usage Analytics
+
+All user interactions are logged to `data/interaction_log.csv` for:
+- **Model performance analysis**
+- **Training data collection**
+- **Response improvement tracking**
+
+## 🔧 Configuration
+
+### **API Endpoints**
+- `GET /health` - Health check
+- `POST /ask` - Ask questions to AI models
+- `POST /search` - Search document vectors
+
+### **Models**
+- `nelly-1.0`: RAG-based responses
+- `gpt-4`: General AI responses
+
+## 📝 License
+
+This project is for educational and personal use.
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## 📞 Support
+
+For questions or issues, please check the documentation in the `docs/` folder or create an issue in the repository.
+

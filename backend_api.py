@@ -1,7 +1,5 @@
 from typing import List, Dict, Any
 import os
-import asyncio
-import re
 import csv
 from datetime import datetime
 
@@ -12,7 +10,7 @@ from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
 
 try:
@@ -22,97 +20,54 @@ except Exception:
     openai = None
     openai_available = False
 
-def enhanced_query_processing(question: str) -> List[str]:
-    """Generate multiple query variations for better semantic retrieval"""
-    queries = [question]  # Original question
-    
-    # Insurance terminology synonyms and variations
-    synonyms = {
-        "deductible": ["out-of-pocket", "co-pay", "co-payment", "upfront cost", "initial payment"],
-        "coverage": ["benefits", "insurance", "protection", "what's covered", "covered services"],
-        "referral": ["authorization", "permission", "approval", "referral required", "need permission"],
-        "emergency": ["urgent", "critical", "immediate care", "emergency room", "ER"],
-        "specialist": ["specialist doctor", "specialist care", "specialized care", "specialist visit"],
-        "copay": ["copayment", "fixed cost", "set amount", "flat fee", "per visit cost"],
-        "coinsurance": ["percentage", "share of cost", "portion", "percentage you pay"],
-        "network": ["in-network", "covered providers", "plan providers", "participating providers"],
-        "prescription": ["medication", "drugs", "pharmacy", "prescription drugs", "meds"],
-        "mental health": ["behavioral health", "mental health services", "psychiatric", "therapy", "counseling"]
-    }
-    
-    # Generate variations by replacing terms
-    for original, alternatives in synonyms.items():
-        if original.lower() in question.lower():
-            for alt in alternatives:
-                variation = question.replace(original, alt)
-                if variation not in queries:
-                    queries.append(variation)
-    
-    # Generate question variations
-    question_patterns = {
-        r"what.*cost": ["cost", "price", "fee", "charge", "expense"],
-        r"do i need": ["require", "necessary", "must have", "need permission"],
-        r"how much": ["cost", "price", "amount", "fee", "charge"],
-        r"can i": ["am i allowed", "is it covered", "do i have access"],
-        r"what.*covered": ["benefits", "included", "covered services", "what's included"]
-    }
-    
-    for pattern, alternatives in question_patterns.items():
-        if re.search(pattern, question.lower()):
-            for alt in alternatives:
-                variation = re.sub(pattern, f"what {alt}", question, flags=re.IGNORECASE)
-                if variation not in queries:
-                    queries.append(variation)
-    
-    return queries[:5]  # Limit to 5 variations to avoid overwhelming the system
-
-def log_interaction_to_csv(question: str, answer: str, model: str, timestamp: datetime = None, error: str = None, contexts_used: int = 0, improved_response: str = None):
-    """Log interaction to CSV file for training purposes"""
+def log_interaction_to_csv(question: str, answer: str, model: str, timestamp: datetime = None, error: str = None, contexts_used: int = 0):
+    """Log all interactions to CSV for training purposes"""
     if timestamp is None:
         timestamp = datetime.now()
     
-    # Create CSV file path
-    csv_file = "interaction_log.csv"
+    csv_file = "data/interaction_log.csv"
     
-    # Check if file exists to determine if we need headers
+    # Check if file exists and has headers
     file_exists = os.path.exists(csv_file)
     
-    # Prepare the row data
-    row_data = {
-        'timestamp': timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-        'question': question,
-        'answer': answer if answer else '',
-        'model': model,
-        'error': error if error else '',
-        'contexts_used': contexts_used,
-        'improved_response': improved_response if improved_response else '',
-        'date': timestamp.strftime('%Y-%m-%d'),
-        'time': timestamp.strftime('%H:%M:%S')
-    }
-    
-    # Write to CSV
-    with open(csv_file, 'a', newline='', encoding='utf-8') as csvfile:
-        fieldnames = ['timestamp', 'question', 'answer', 'model', 'error', 'contexts_used', 'improved_response', 'date', 'time']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    with open(csv_file, 'a', newline='', encoding='utf-8') as file:
+        fieldnames = [
+            'timestamp', 'question', 'answer', 'model', 'error', 
+            'contexts_used', 'improved_response', 'improvement_notes', 
+            'category', 'priority'
+        ]
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
         
         # Write header if file is new
         if not file_exists:
             writer.writeheader()
         
-        # Write the row
+        # Prepare row data
+        row_data = {
+            'timestamp': timestamp.isoformat(),
+            'question': question,
+            'answer': answer,
+            'model': model,
+            'error': error or '',
+            'contexts_used': contexts_used,
+            'improved_response': '',
+            'improvement_notes': '',
+            'category': '',
+            'priority': ''
+        }
+        
         writer.writerow(row_data)
 
 # Initialize FastAPI app
 app = FastAPI(title="PSIP Plan Pal Backend", version="0.1.0")
 
-# Enable CORS - configure for production
+# Enable CORS
 allowed_origins = [
     "http://localhost:3000",
     "http://localhost:8080", 
     "http://localhost:8081",
     "http://localhost:8082",
-    "https://psip-navigator.vercel.app",  # Update with your actual frontend URL
-    "https://psip-plan-pal.vercel.app",   # Update with your actual frontend URL
+    "https://rainbow-crepe-86c301.netlify.app",  # Netlify frontend
 ]
 
 # Add environment variable for additional origins
@@ -126,6 +81,8 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
 
 # Initialize Chroma and embedding model
 CHROMA_PATH = os.environ.get("CHROMA_PATH", "./chroma_db")
@@ -144,72 +101,36 @@ openai_client = None
 # Initialize OpenAI client safely
 if openai_available and openai_api_key:
     try:
-        # Use the older OpenAI API format for version 0.28.1
         openai.api_key = openai_api_key
         openai_client = openai
     except Exception as e:
         print(f"Warning: Failed to initialize OpenAI client: {e}")
         openai_client = None
 
-
 class SearchRequest(BaseModel):
     query: str
     n_results: int = 5
-
 
 class AskRequest(BaseModel):
     question: str
     n_context: int = 5
     model: str = "nelly-1.0"
 
-
-@app.get("/health")
-async def health() -> Dict[str, Any]:
-    return {"status": "ok", "collection": COLLECTION_NAME}
-
-
-@app.post("/search")
-async def search(req: SearchRequest) -> Dict[str, Any]:
-    query_embedding = model.encode([req.query]).tolist()
-    results = collection.query(query_embeddings=query_embedding, n_results=req.n_results)
-
-    hits: List[Dict[str, Any]] = []
-    for i in range(len(results.get("documents", [[]])[0])):
-        hits.append({
-            "text": results["documents"][0][i],
-            "metadata": results["metadatas"][0][i],
-            "distance": results["distances"][0][i],
-            "id": results["ids"][0][i],
-        })
-    return {"query": req.query, "results": hits}
-
-
-def build_rag_prompt(question: str, contexts: List[Dict[str, Any]]) -> str:
-    context_blocks = []
-    for c in contexts:
-        source = c.get("metadata", {}).get("source_file", "")
-        page = c.get("metadata", {}).get("page_number", "")
-        context_blocks.append(f"Source: {source} (page {page})\n{c.get('text','')}")
-    joined_context = "\n\n---\n\n".join(context_blocks)
+def build_rag_prompt(question: str, contexts: List[str]) -> str:
+    """Build enhanced RAG prompt with better context understanding"""
+    joined_context = "\n\n".join([f"Context {i+1}: {ctx}" for i, ctx in enumerate(contexts)])
     
     enhanced_instructions = (
-        "You are Nelly, a specialized PSIP health insurance assistant. Your role is to help members understand their benefits using the provided plan documents.\n\n"
-        "INSTRUCTIONS:\n"
-        "1. Answer questions using ONLY the provided context from plan documents\n"
-        "2. If the question asks about something similar to what's in the context (even with different wording), provide the relevant information\n"
-        "3. Look for semantic meaning, not just exact word matches\n"
-        "4. If you find related information that partially answers the question, explain what you found and what's missing\n"
-        "5. Be conversational and helpful while staying accurate\n"
-        "6. If the answer is not in the context, say: 'I don't have specific information about this in your plan documents.'\n"
-        "7. Always cite your sources (filename and page) in a 'Sources' section\n\n"
-        "EXAMPLES OF SEMANTIC MATCHING:\n"
-        "- 'What do I pay upfront?' → Look for deductible, copay, out-of-pocket information\n"
-        "- 'Can I see a specialist?' → Look for referral requirements, specialist coverage\n"
-        "- 'What's covered for mental health?' → Look for behavioral health, mental health benefits\n"
-        "- 'Do I need permission to see a doctor?' → Look for referral, authorization, prior authorization\n"
-        "- 'What's my share of costs?' → Look for copay, coinsurance, out-of-pocket maximum\n"
-        "- 'Emergency care coverage' → Look for emergency room, urgent care, emergency services\n"
-        "- 'Prescription drug costs' → Look for pharmacy benefits, drug coverage, medication costs\n\n"
+        "You are Nelly 1.0, a specialized AI assistant for PSIP health insurance questions. "
+        "Use ONLY the provided context to answer questions about the user's specific insurance plan.\n\n"
+        
+        "CONTEXT UNDERSTANDING RULES:\n"
+        "1. Look for semantic meaning, not just exact word matches\n"
+        "2. If you find related information that partially answers the question, explain what you found\n"
+        "3. Be conversational and helpful while staying accurate\n"
+        "4. If the answer is not in the context, say: 'I don't have specific information about this in your plan documents.'\n"
+        "5. Always cite your sources (filename and page) in a 'Sources' section\n\n"
+        
         "INSURANCE TERMINOLOGY HELP:\n"
         "- 'Deductible' = amount you pay before insurance starts covering\n"
         "- 'Copay' = fixed amount you pay for services\n"
@@ -246,133 +167,152 @@ def call_general_llm(question: str) -> Dict[str, Any]:
     except Exception as e:
         return {"error": f"General LLM call failed: {e}"}
 
+@app.get("/")
+async def root():
+    return {"message": "PSIP Plan Pal Backend API", "status": "running"}
+
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "chroma_collection": COLLECTION_NAME,
+        "embedding_model": EMBEDDING_MODEL_NAME,
+        "openai_available": openai_client is not None
+    }
+
+@app.post("/search")
+async def search_documents(request: SearchRequest):
+    """Search for similar documents using vector similarity"""
+    try:
+        # Get query embedding
+        query_embedding = model.encode(request.query).tolist()
+        
+        # Search in ChromaDB
+        results = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=request.n_results
+        )
+        
+        # Format results
+        documents = []
+        if results['documents'] and results['documents'][0]:
+            for i, doc in enumerate(results['documents'][0]):
+                documents.append({
+                    "text": doc,
+                    "metadata": results['metadatas'][0][i] if results['metadatas'] and results['metadatas'][0] else {},
+                    "distance": results['distances'][0][i] if results['distances'] and results['distances'][0] else 0
+                })
+        
+        return {
+            "query": request.query,
+            "results": documents,
+            "total_found": len(documents)
+        }
+        
+    except Exception as e:
+        return {"error": f"Search failed: {str(e)}"}
 
 @app.post("/ask")
-async def ask(req: AskRequest) -> Dict[str, Any]:
-    # Handle different models
-    if req.model == "gpt-4":
-        # Use general LLM without RAG
-        general_result = call_general_llm(req.question)
-        if "error" in general_result:
-            # Log the error
-            log_interaction_to_csv(
-                question=req.question,
-                answer=None,
-                model="gpt-4",
-                error=general_result["error"],
-                contexts_used=0
+async def ask_question(request: AskRequest):
+    """Ask a question using RAG (Nelly 1.0) or general LLM (GPT-4)"""
+    try:
+        if request.model == "nelly-1.0":
+            # RAG-based response using document context
+            query_embedding = model.encode(request.question).tolist()
+            
+            # Search for relevant context
+            results = collection.query(
+                query_embeddings=[query_embedding],
+                n_results=request.n_context
             )
+            
+            contexts = []
+            if results['documents'] and results['documents'][0]:
+                contexts = results['documents'][0]
+            
+            if not contexts:
+                answer = "I don't have specific information about this in your plan documents. Please check your plan materials or contact your insurance provider."
+            else:
+                # Build RAG prompt
+                rag_prompt = build_rag_prompt(request.question, contexts)
+                
+                if openai_client:
+                    try:
+                        response = openai_client.ChatCompletion.create(
+                            model=OPENAI_MODEL,
+                            messages=[{"role": "user", "content": rag_prompt}],
+                            temperature=0.1,
+                            max_tokens=800
+                        )
+                        answer = response.choices[0].message.content
+                    except Exception as e:
+                        answer = f"I found relevant information but had trouble processing it: {str(e)}"
+                else:
+                    # Fallback response without OpenAI
+                    answer = f"Based on your plan documents, I found {len(contexts)} relevant sections. Here's what I found:\n\n"
+                    for i, ctx in enumerate(contexts[:3]):  # Show first 3 contexts
+                        answer += f"• {ctx[:200]}...\n\n"
+                    answer += "For a complete answer, please check your plan documents or contact your insurance provider."
+            
+            # Log interaction
+            log_interaction_to_csv(
+                question=request.question,
+                answer=answer,
+                model="nelly-1.0",
+                contexts_used=len(contexts)
+            )
+            
             return {
-                "question": req.question,
-                "answer": None,
-                "error": general_result["error"],
-                "model": "gpt-4"
+                "question": request.question,
+                "answer": answer,
+                "model": "nelly-1.0",
+                "contexts_used": len(contexts)
+            }
+            
+        elif request.model == "gpt-4":
+            # General LLM response
+            result = call_general_llm(request.question)
+            
+            if "error" in result:
+                answer = f"I'm a general AI assistant. For specific information about your PSIP health plan, I recommend checking your plan documents or contacting your insurance provider directly. Your question was: \"{request.question}\""
+                model_used = "gpt-4o-mini"
+                error_msg = result["error"]
+            else:
+                answer = result["answer"]
+                model_used = result["model"]
+                error_msg = None
+            
+            # Log interaction
+            log_interaction_to_csv(
+                question=request.question,
+                answer=answer,
+                model=model_used,
+                error=error_msg
+            )
+            
+            return {
+                "question": request.question,
+                "answer": answer,
+                "model": model_used,
+                "note": error_msg or "OpenAI API key not configured. Set OPENAI_API_KEY environment variable." if not openai_client else None
             }
         
-        # Log successful GPT-4 response
-        log_interaction_to_csv(
-            question=req.question,
-            answer=general_result["answer"],
-            model="gpt-4",
-            contexts_used=0
-        )
-        
-        return {
-            "question": req.question,
-            "answer": general_result["answer"],
-            "model": "gpt-4"
-        }
-    
-    # Default to Nelly 1.0 (RAG-based) with enhanced semantic understanding
-    # Generate multiple query variations for better retrieval
-    query_variations = enhanced_query_processing(req.question)
-    
-    # Retrieve contexts for each variation and combine
-    all_contexts = []
-    for query in query_variations:
-        query_embedding = model.encode([query]).tolist()
-        results = collection.query(query_embeddings=query_embedding, n_results=3)  # Fewer per query, more queries
-        
-        for i in range(len(results.get("documents", [[]])[0])):
-            all_contexts.append({
-                "text": results["documents"][0][i],
-                "metadata": results["metadatas"][0][i],
-                "distance": results["distances"][0][i],
-                "id": results["ids"][0][i],
-            })
-    
-    # Remove duplicates and get top contexts
-    unique_contexts = []
-    seen_ids = set()
-    for context in all_contexts:
-        if context["id"] not in seen_ids:
-            unique_contexts.append(context)
-            seen_ids.add(context["id"])
-    
-    # Sort by distance (lower is better) and take top contexts
-    contexts = sorted(unique_contexts, key=lambda x: x["distance"])[:req.n_context]
-
-    # If no OpenAI key, return contexts so frontend can render and handle summarization client-side
-    if openai_client is None:
-        # Log the no-API-key scenario
-        log_interaction_to_csv(
-            question=req.question,
-            answer=None,
-            model="nelly-1.0",
-            error="No OPENAI_API_KEY set",
-            contexts_used=len(contexts)
-        )
-        return {
-            "question": req.question,
-            "answer": None,
-            "note": "No OPENAI_API_KEY set; returning top contexts only.",
-            "contexts": contexts,
-            "model": "nelly-1.0"
-        }
-
-    # Build RAG prompt and call OpenAI
-    prompt = build_rag_prompt(req.question, contexts)
-
-    try:
-        # Use the older OpenAI API format for version 0.28.1
-        response = openai_client.ChatCompletion.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": "You answer strictly from provided plan document context."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.2,
-        )
-        answer_text = response.choices[0].message.content
-        
-        # Log successful Nelly 1.0 response
-        log_interaction_to_csv(
-            question=req.question,
-            answer=answer_text,
-            model="nelly-1.0",
-            contexts_used=len(contexts)
-        )
-        
-        return {
-            "question": req.question,
-            "answer": answer_text,
-            "contexts": contexts,
-            "model": "nelly-1.0",
-        }
+        else:
+            return {"error": f"Unknown model: {request.model}"}
+            
     except Exception as e:
-        # Log the error
+        error_msg = f"Request failed: {str(e)}"
+        
+        # Log error
         log_interaction_to_csv(
-            question=req.question,
-            answer=None,
-            model="nelly-1.0",
-            error=f"LLM call failed: {e}",
-            contexts_used=len(contexts)
+            question=request.question,
+            answer="",
+            model=request.model,
+            error=error_msg
         )
         
-        return {
-            "question": req.question,
-            "answer": None,
-            "error": f"LLM call failed: {e}",
-            "contexts": contexts,
-            "model": "nelly-1.0"
-        }
+        return {"error": error_msg}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

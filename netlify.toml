@@ -7,7 +7,7 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "https://your-backend-url.railway.app/:splat"
+  to = "https://us-central1-psip-navigator.cloudfunctions.net/:splat"
   status = 200
   force = true
 
