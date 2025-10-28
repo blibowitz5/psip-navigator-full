@@ -219,7 +219,7 @@ def call_general_llm(question: str) -> Dict[str, Any]:
         response = openai_client.ChatCompletion.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant answering questions about health insurance. Be honest if you don't have specific information about a particular plan."},
+                {"role": "system", "content": "You are a helpful assistant answering questions about health insurance. If someone asks you a question about the cost of a service or certain coverage, and you respond with the coinsurance rate or copays, make sure you clarify that the appropriate deductible must be met first. Be honest if you don't have specific information about a particular plan."},
                 {"role": "user", "content": question}
             ],
             temperature=0.2,
