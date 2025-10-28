@@ -10,8 +10,38 @@ from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
 
+# Firebase imports
+try:
+    import firebase_admin
+    from firebase_admin import credentials, firestore
+    firebase_available = True
+except ImportError:
+    firebase_available = False
+    print("Firebase Admin SDK not available. Install with: pip install firebase-admin")
+
 # Load environment variables
 load_dotenv()
+
+# Initialize Firebase Admin if available
+db = None
+if firebase_available:
+    try:
+        if not firebase_admin._apps:
+            # Try to use service account key file first
+            service_account_path = os.environ.get("FIREBASE_SERVICE_ACCOUNT_PATH")
+            if service_account_path and os.path.exists(service_account_path):
+                cred = credentials.Certificate(service_account_path)
+                firebase_admin.initialize_app(cred)
+            else:
+                # Use default credentials (for Firebase Functions environment)
+                cred = credentials.ApplicationDefault()
+                firebase_admin.initialize_app(cred)
+        
+        db = firestore.client()
+        print("Firebase Firestore initialized successfully")
+    except Exception as e:
+        print(f"Failed to initialize Firebase: {e}")
+        db = None
 
 try:
     import openai
@@ -19,6 +49,24 @@ try:
 except Exception:
     openai = None
     openai_available = False
+
+def log_interaction_to_firebase(interaction_data: Dict[str, Any]) -> str:
+    """Log interaction to Firebase Firestore"""
+    if not db:
+        print("Firebase not available, skipping Firebase logging")
+        return None
+    
+    try:
+        # Add server timestamp
+        interaction_data['created_at'] = firestore.SERVER_TIMESTAMP
+        
+        # Add to interactions collection
+        doc_ref = db.collection('interactions').add(interaction_data)
+        print(f"Interaction logged to Firebase: {doc_ref[1].id}")
+        return doc_ref[1].id
+    except Exception as e:
+        print(f"Error logging interaction to Firebase: {e}")
+        return None
 
 def log_interaction_to_csv(question: str, answer: str, model: str, timestamp: datetime = None, error: str = None, contexts_used: int = 0):
     """Log all interactions to CSV for training purposes"""
@@ -57,6 +105,24 @@ def log_interaction_to_csv(question: str, answer: str, model: str, timestamp: da
         }
         
         writer.writerow(row_data)
+        
+        print(f"Interaction logged to CSV: {question[:50]}...")
+        
+        # Also log to Firebase if available
+        firebase_data = {
+            'question': question,
+            'answer': answer,
+            'model': model,
+            'error': error,
+            'contexts_used': contexts_used,
+            'timestamp': timestamp,
+            'user_id': 'anonymous',
+            'improved_response': None,
+            'improvement_notes': None,
+            'category': None,
+            'priority': None
+        }
+        log_interaction_to_firebase(firebase_data)
 
 # Initialize FastAPI app
 app = FastAPI(title="PSIP Plan Pal Backend", version="0.1.0")

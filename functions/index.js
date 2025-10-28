@@ -4,6 +4,57 @@ const admin = require('firebase-admin');
 // Initialize Firebase Admin
 admin.initializeApp();
 
+// Get Firestore instance
+const db = admin.firestore();
+
+// Firebase logging function
+async function logInteractionToFirebase(interactionData) {
+  try {
+    const {
+      question,
+      answer,
+      model,
+      error = null,
+      contexts_used = 0,
+      timestamp = new Date(),
+      user_id = 'anonymous',
+      session_id = null,
+      response_time = null,
+      improved_response = null,
+      improvement_notes = null,
+      category = null,
+      priority = null
+    } = interactionData;
+
+    const logEntry = {
+      timestamp: admin.firestore.Timestamp.fromDate(timestamp),
+      question,
+      answer,
+      model,
+      error,
+      contexts_used,
+      user_id,
+      session_id,
+      response_time,
+      improved_response,
+      improvement_notes,
+      category,
+      priority,
+      created_at: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    // Add to interactions collection
+    const docRef = await db.collection('interactions').add(logEntry);
+    console.log('Interaction logged to Firebase:', docRef.id);
+    
+    return docRef.id;
+  } catch (error) {
+    console.error('Error logging interaction to Firebase:', error);
+    // Don't throw error to avoid breaking the main flow
+    return null;
+  }
+}
+
 // Initialize OpenAI (optional)
 let openai = null;
 try {
@@ -265,10 +316,24 @@ exports.ask = functions.https.onRequest(async (req, res) => {
     await initializeVectorStore();
 
     if (model === "gpt-4") {
+      const startTime = Date.now();
+      
       if (!openai) {
+        const answer = `I'm a general AI assistant. For specific information about your PSIP health plan, I recommend checking your plan documents or contacting your insurance provider directly. Your question was: "${question}"`;
+        
+        // Log interaction to Firebase
+        await logInteractionToFirebase({
+          question,
+          answer,
+          model: "gpt-4o-mini",
+          user_id: 'anonymous',
+          response_time: Date.now() - startTime,
+          error: "OpenAI API key not configured"
+        });
+        
         res.json({
           question: question,
-          answer: `I'm a general AI assistant. For specific information about your PSIP health plan, I recommend checking your plan documents or contacting your insurance provider directly. Your question was: "${question}"`,
+          answer: answer,
           model: "gpt-4o-mini",
           note: "OpenAI API key not configured. Set OPENAI_API_KEY environment variable."
         });
@@ -292,27 +357,63 @@ exports.ask = functions.https.onRequest(async (req, res) => {
           max_tokens: 500
         });
 
+        const answer = response.choices[0].message.content;
+        
+        // Log interaction to Firebase
+        await logInteractionToFirebase({
+          question,
+          answer,
+          model: "gpt-4o-mini",
+          user_id: 'anonymous', // Could be extracted from request headers if available
+          response_time: Date.now() - startTime
+        });
+        
         res.json({
           question: question,
-          answer: response.choices[0].message.content,
+          answer: answer,
           model: "gpt-4o-mini"
         });
       } catch (error) {
+        const answer = `Error calling OpenAI: ${error.message}. Please try again later.`;
+        
+        // Log interaction to Firebase
+        await logInteractionToFirebase({
+          question,
+          answer,
+          model: "gpt-4o-mini",
+          user_id: 'anonymous',
+          response_time: Date.now() - startTime,
+          error: error.message
+        });
+        
         res.json({
           question: question,
-          answer: `Error calling OpenAI: ${error.message}. Please try again later.`,
+          answer: answer,
           model: "gpt-4o-mini",
           error: error.message
         });
       }
     } else {
       // Use Nelly 1.0 with RAG
+      const startTime = Date.now();
       const contexts = searchSimilarDocuments(question, 3);
       
       if (contexts.length === 0) {
+        const answer = "I don't have specific information about this in your plan documents. Please contact your insurance provider for more details.";
+        
+        // Log interaction to Firebase
+        await logInteractionToFirebase({
+          question,
+          answer,
+          model: "nelly-1.0",
+          user_id: 'anonymous',
+          response_time: Date.now() - startTime,
+          contexts_used: 0
+        });
+        
         res.json({
           question: question,
-          answer: "I don't have specific information about this in your plan documents. Please contact your insurance provider for more details.",
+          answer: answer,
           model: "nelly-1.0",
           contexts: []
         });
@@ -339,9 +440,21 @@ exports.ask = functions.https.onRequest(async (req, res) => {
             max_tokens: 500
           });
 
+          const answer = response.choices[0].message.content;
+          
+          // Log interaction to Firebase
+          await logInteractionToFirebase({
+            question,
+            answer,
+            model: "nelly-1.0",
+            user_id: 'anonymous',
+            response_time: Date.now() - startTime,
+            contexts_used: contexts.length
+          });
+          
           res.json({
             question: question,
-            answer: response.choices[0].message.content,
+            answer: answer,
             model: "nelly-1.0",
             contexts: contexts.map(ctx => ({
               text: ctx.text,
@@ -352,6 +465,18 @@ exports.ask = functions.https.onRequest(async (req, res) => {
         } catch (error) {
           // Fallback to simple response if OpenAI fails
           const answer = generateSimpleResponse(question, contexts);
+          
+          // Log interaction to Firebase
+          await logInteractionToFirebase({
+            question,
+            answer,
+            model: "nelly-1.0",
+            user_id: 'anonymous',
+            response_time: Date.now() - startTime,
+            contexts_used: contexts.length,
+            error: "OpenAI error, using fallback response"
+          });
+          
           res.json({
             question: question,
             answer: answer,
@@ -367,6 +492,17 @@ exports.ask = functions.https.onRequest(async (req, res) => {
       } else {
         // Use simple response when OpenAI is not available
         const answer = generateSimpleResponse(question, contexts);
+        
+        // Log interaction to Firebase
+        await logInteractionToFirebase({
+          question,
+          answer,
+          model: "nelly-1.0",
+          user_id: 'anonymous',
+          response_time: Date.now() - startTime,
+          contexts_used: contexts.length
+        });
+        
         res.json({
           question: question,
           answer: answer,
@@ -382,6 +518,20 @@ exports.ask = functions.https.onRequest(async (req, res) => {
     
   } catch (error) {
     console.error('Error:', error);
+    
+    // Log error to Firebase
+    try {
+      await logInteractionToFirebase({
+        question: question || 'Unknown',
+        answer: '',
+        model: model || 'unknown',
+        user_id: 'anonymous',
+        error: 'Internal server error: ' + error.message
+      });
+    } catch (logError) {
+      console.error('Failed to log error to Firebase:', logError);
+    }
+    
     res.status(500).json({error: 'Internal server error: ' + error.message});
   }
 });
