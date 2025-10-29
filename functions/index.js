@@ -170,28 +170,72 @@ async function initializeVectorStore() {
   }
 }
 
-// Proper similarity search using text matching
+// Generate multiple query variations for better context retrieval
+function generateQueryVariations(query) {
+  const variations = [query];
+  const lowerQuery = query.toLowerCase();
+  
+  // Deductible-specific variations
+  if (lowerQuery.includes('deductible')) {
+    variations.push('policy year deductible', 'per policy year', 'in-network deductible');
+  }
+  
+  // Cost-specific variations
+  if (lowerQuery.includes('cost') || lowerQuery.includes('how much') || lowerQuery.includes('copay')) {
+    variations.push('copayment', 'copay amount', 'cost sharing', 'out-of-pocket');
+  }
+  
+  // Coverage-specific variations
+  if (lowerQuery.includes('covered') || lowerQuery.includes('coverage')) {
+    variations.push('eligible', 'benefits', 'schedule of benefits', 'covered services');
+  }
+  
+  // Referral-specific variations
+  if (lowerQuery.includes('referral') || lowerQuery.includes('specialist')) {
+    variations.push('permission', 'authorization', 'referral requirement', 'specialist visit');
+  }
+  
+  // Emergency-specific variations
+  if (lowerQuery.includes('emergency') || lowerQuery.includes('urgent')) {
+    variations.push('emergency room', 'urgent care', 'emergency services', 'medical emergency');
+  }
+  
+  // Remove duplicates and return
+  return [...new Set(variations)];
+}
+
+// Enhanced similarity search with multiple query variations
 function searchSimilarDocuments(query, topK = 3) {
   const results = [];
   
-  // Use text-based search with intelligent scoring
-  const queryWords = query.toLowerCase().split(/\s+/).filter(word => word.length > 2);
+  // Generate multiple query variations for better context retrieval
+  const queryVariations = generateQueryVariations(query);
   
   for (const [id, doc] of vectorStore) {
     const docText = doc.text.toLowerCase();
     let score = 0;
     
-    // Count exact word matches
-    queryWords.forEach(word => {
-      const regex = new RegExp(`\\b${word}\\b`, 'g');
-      const matches = (docText.match(regex) || []).length;
-      score += matches * 3; // Exact matches get higher weight
-    });
-    
-    // Count partial word matches
-    queryWords.forEach(word => {
-      if (docText.includes(word)) {
-        score += 1;
+    // Search using all query variations
+    queryVariations.forEach(variation => {
+      const variationWords = variation.toLowerCase().split(/\s+/).filter(word => word.length > 2);
+      
+      // Count exact word matches
+      variationWords.forEach(word => {
+        const regex = new RegExp(`\\b${word}\\b`, 'g');
+        const matches = (docText.match(regex) || []).length;
+        score += matches * 3; // Exact matches get higher weight
+      });
+      
+      // Count partial word matches
+      variationWords.forEach(word => {
+        if (docText.includes(word)) {
+          score += 1;
+        }
+      });
+      
+      // Boost score for exact phrase matches
+      if (docText.includes(variation.toLowerCase())) {
+        score += 10;
       }
     });
     
@@ -199,7 +243,8 @@ function searchSimilarDocuments(query, topK = 3) {
     const importantTerms = [
       'deductible', 'copay', 'coverage', 'benefits', 'premium', 'out-of-pocket', 
       'network', 'referral', 'authorization', 'emergency', 'specialist', 'mental health',
-      'prescription', 'coinsurance', 'maximum', 'preventive', 'urgent', 'hospital'
+      'prescription', 'coinsurance', 'maximum', 'preventive', 'urgent', 'hospital',
+      'policy year', 'per policy year', 'in-network', 'out-of-network'
     ];
     importantTerms.forEach(term => {
       if (query.toLowerCase().includes(term) && docText.includes(term)) {
@@ -207,9 +252,12 @@ function searchSimilarDocuments(query, topK = 3) {
       }
     });
     
-    // Boost score for exact phrase matches
-    if (docText.includes(query.toLowerCase())) {
-      score += 10;
+    // Boost score for specific document types based on query
+    if (query.toLowerCase().includes('deductible') && doc.metadata.source_file === 'Summary_of_Benefits.pdf') {
+      score += 3; // Prioritize Summary of Benefits for deductible questions
+    }
+    if (query.toLowerCase().includes('referral') && doc.metadata.source_file === 'Master_Policy.pdf') {
+      score += 3; // Prioritize Master Policy for referral questions
     }
     
     if (score > 0) {
@@ -217,7 +265,7 @@ function searchSimilarDocuments(query, topK = 3) {
         id,
         text: doc.text,
         metadata: doc.metadata,
-        similarity: score / Math.max(queryWords.length, 1) // Normalize by query length
+        similarity: score / Math.max(query.split(/\s+/).length, 1) // Normalize by query length
       });
     }
   }
@@ -233,14 +281,47 @@ function buildRAGPrompt(question, contexts) {
     `Source: ${ctx.metadata.source_file} (Page ${ctx.metadata.page_number})\n${ctx.text}`
   ).join('\n\n---\n\n');
   
-  return `You are Nelly, a specialized PSIP health insurance assistant. Answer the user's question using ONLY the provided context from plan documents.
+  return `You are Nelly 1.0, a specialized AI assistant for PSIP health insurance questions. Use ONLY the provided context to answer questions about the user's specific insurance plan.
 
-INSTRUCTIONS:
-1. Answer questions using ONLY the provided context from plan documents
-2. If the question asks about something similar to what's in the context, provide the relevant information
+CONTEXT UNDERSTANDING RULES:
+1. Look for semantic meaning, not just exact word matches
+2. If you find related information that partially answers the question, explain what you found
 3. Be conversational and helpful while staying accurate
 4. If the answer is not in the context, say: 'I don't have specific information about this in your plan documents.'
-5. Always cite your sources
+5. If you find partial information, explain what you found and what's missing
+6. If someone asks you a question about the cost of a service or certain coverage, and you respond with the coinsurance rate or copays, make sure you clarify that the appropriate deductible must be met first.
+7. Always cite your sources (filename and page) in a 'Sources' section
+8. For deductible questions, search for 'deductible', 'policy year deductible', and 'per policy year'
+9. For cost questions, always search for specific dollar amounts and percentages
+10. For coverage questions, look for 'covered', 'eligible', 'benefits', and 'schedule of benefits'
+11. For referral questions, search for 'referral', 'permission', 'authorization', and 'specialist'
+12. Always check multiple document sections for complete answers
+
+INSURANCE TERMINOLOGY HELP:
+- 'Deductible' = amount you pay before insurance starts covering
+- 'Copay' = fixed amount you pay for services
+- 'Coinsurance' = percentage you pay after deductible
+- 'Out-of-pocket maximum' = most you'll pay in a year
+- 'In-network' = providers covered by your plan
+
+EMERGENCY CARE GUIDANCE:
+- For urgent medical situations, always mention emergency room options
+- Clarify when to use emergency vs urgent care vs specialist
+- Include copayment information for emergency services
+- Explain referral requirements for follow-up care
+
+DEDUCTIBLE SEARCH PATTERNS:
+- Search for '$400', 'four hundred', 'per policy year'
+- Look in Summary_of_Benefits.pdf first
+- Check for 'in-network' vs 'out-of-network' distinctions
+- Include family vs individual deductible amounts
+
+RESPONSE QUALITY RULES:
+- Include both in-network and out-of-network information
+- Mention exceptions and waivers (like preventive care)
+- Provide clear next steps for the user
+- Use bullet points for complex information
+- Include urgency indicators for medical situations
 
 Question: ${question}
 
